@@ -71,45 +71,4 @@ pipeline {
             }
         }
 
-        stage('Run Python CbN Workflow') {
-            steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
-                    script {
-                        // Only use credentials if provided
-                        def cbnPasswordId = env.CBN_PASSWORD_ID
-                        if (cbnPasswordId) {
-                            withCredentials([string(credentialsId: cbnPasswordId, variable: 'CBN_PASSWORD')]) {
-                                sh ". venv/bin/activate && python3 run_cbn.py input_files/cpp"
-                            }
-                        } else {
-                            echo "No CBN_PASSWORD provided, running without credentials."
-                            sh ". venv/bin/activate && python3 run_cbn.py input_files/cpp"
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Push Node.js Output to GitHub') {
-            when {
-                expression { false } // skipped for testing without credentials
-            }
-            steps {
-                echo "Skipping push stage in test run."
-            }
-        }
-    }
-
-    post {
-        always {
-            echo "Cleaning workspa"
-            cleanWs()
-        }
-        success {
-            echo "pipeline completed successfully!"
-        }
-        failure {
-            echo "pipeline failed!"
-        }
-    }
-}
+   
