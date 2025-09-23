@@ -85,7 +85,6 @@ def listen_to_stream(headers, output_path):
                             with open(output_file, "w", encoding="utf-8") as f:
                                 f.write(result)
                             print(f"{filename}.md : file created.")
-                        #print(f"Elapsed time (ms): {data.get('elapsed_time_ms', '0')}")
                 except json.JSONDecodeError:
                     continue
 
@@ -138,7 +137,6 @@ def check_for_stream(execution_ids):
     timeout = time.time() + 600 # Close stream after 10 minutes.
     print("\nWaiting for stream results...\n")
     
-    # Wait until all execution IDs have results
     while True:
         if all(eid in stream_results for eid in execution_ids) or time.time() > timeout:
             break
@@ -148,6 +146,8 @@ def check_for_stream(execution_ids):
         print("Timeout reached. Some results may be missing.")
     else:
         print("\n=== All results received from stream...exiting...===\n")
+
+
 # -------------------------------
 # MAIN ENTRY POINT
 # -------------------------------
@@ -167,8 +167,15 @@ def main():
         PASSWORD = None
 
     cbn_project = cfg.CBN_PROJECT
-    INPUT_DIR = f"{cfg.INPUT_DIR}/{FILETYPE}"
-    OUTPUT_DIR = f"{cfg.OUTPUT_DIR}/{FILETYPE}"
+
+    # -------------------------------
+    # FIXED PATH: Use absolute path to avoid double prefix issue
+    # -------------------------------
+    BASE_DIR = Path(__file__).parent.resolve()
+    INPUT_DIR = BASE_DIR / cfg.INPUT_DIR / FILETYPE
+    OUTPUT_DIR = BASE_DIR / cfg.OUTPUT_DIR / FILETYPE
+
+    print(f"Looking for input files in: {INPUT_DIR}")  # Debug print
 
     # Ensure input directory exists and has files
     if not os.path.exists(INPUT_DIR) or not any(Path(INPUT_DIR).iterdir()):
@@ -205,40 +212,6 @@ def main():
 
     # Step 3: Start stream listener in background
     stream_thread = threading.Thread(target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True)
-    stream_thread.start()
-    time.sleep(2)  # Ensure the stream is ready
-
-    # Step 4: Send files and get execution IDs
-    execution_ids = send_file_to_api(INPUT_DIR, suffix, headers, project_id, wallet_id, encoding)
-
-    # Step 5: Check for stream to end
-    check_for_stream(execution_ids)
-
-    # Create output directory if needed
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    try:
-        # Step 1: Authenticate and retrieve token
-        token = authenticate(PASSWORD)
-        print("Authentication successful.")
-
-        # Step 2: Retrieve project and wallet ID
-        headers = {'Authorization': f'Bearer {token}'}
-        project_id, wallet_id = get_user_project(headers, cbn_project)
-
-    except requests.HTTPError as err:
-        print(f"HTTP error occurred: {err}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        sys.exit(1)
-
-    # Determine suffix based on file type
-    suffix = "datastage" if FILETYPE == "datastage" else "stored-procedure"
-    encoding = "utf-8" if FILETYPE == "datastage" else "utf-16"
-
-    # Step 3: Start stream listener in background
-    stream_thread = threading.Thread(target=listen_to_stream, args=(headers,OUTPUT_DIR), daemon=True)
     stream_thread.start()
     time.sleep(2)  # Ensure the stream is ready
 
