@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+         CBN_PASSWORD = credentials('cbn-password')  // Jenkins credentials ID
         PYTHONPATH = "${WORKSPACE}/CBN_Workflow_PY"
     }
 
