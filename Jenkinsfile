@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        PYTHONPATH = "${WORKSPACE}/CBN_Workflow_PY"
-        VENV_DIR = "${WORKSPACE}/CBN_Workflow_PY/venv"
+        PYTHON_ENV = "venv"
+        PYTHON_PATH = "${WORKSPACE}/CBN_Workflow_PY"
         NODE_OUTPUT_DIR = "${WORKSPACE}/nodejs_output"
     }
 
@@ -11,15 +11,14 @@ pipeline {
 
         stage('Checkout Repositories') {
             parallel {
-                stage('Checkout Python Workflow') {
+                stage('Python Workflow') {
                     steps {
                         dir('CBN_Workflow_PY') {
                             git branch: 'main', url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git'
                         }
                     }
                 }
-
-                stage('Checkout C++ Code') {
+                stage('C++ Code') {
                     steps {
                         dir('cpp_code') {
                             git branch: 'main', url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git'
@@ -32,26 +31,16 @@ pipeline {
         stage('Setup Python Environment') {
             steps {
                 dir('CBN_Workflow_PY') {
-                    // Clean previous virtual environment
-                    sh 'rm -rf venv'
-                    sh 'python3 -m venv venv'
-
-                    // Activate virtualenv and upgrade pip
                     sh """
-                        . venv/bin/activate
+                        rm -rf ${PYTHON_ENV}
+                        python3 -m venv ${PYTHON_ENV}
+                        . ${PYTHON_ENV}/bin/activate
                         python3 -m pip install --upgrade pip
-                    """
-
-                    // Install required packages if requirements.txt exists
-                    sh """
                         if [ -f requirements.txt ]; then
-                            . venv/bin/activate
                             pip install -r requirements.txt
+                        else
+                            pip install requests
                         fi
-
-                        # Always ensure 'requests' is installed
-                        . venv/bin/activate
-                        pip install requests
                     """
                 }
             }
@@ -60,15 +49,13 @@ pipeline {
         stage('Verify cbn_config.py') {
             steps {
                 dir('CBN_Workflow_PY') {
-                    // Fail gracefully if cbn_config.py is missing
-                    sh """
-                        if [ ! -f cbn_config.py ]; then
-                            echo "ERROR: cbn_config.py not found! Pipeline cannot proceed."
-                            exit 1
-                        else
+                    script {
+                        if (!fileExists('cbn_config.py')) {
+                            error("cbn_config.py not found! Please add it to the repo before running the workflow.")
+                        } else {
                             echo "cbn_config.py exists, continuing..."
-                        fi
-                    """
+                        }
+                    }
                 }
             }
         }
@@ -77,9 +64,10 @@ pipeline {
             steps {
                 dir('CBN_Workflow_PY') {
                     sh """
+                        . ${PYTHON_ENV}/bin/activate
                         mkdir -p ${NODE_OUTPUT_DIR}
-                        . venv/bin/activate
-                        python3 run_cbn_workflow.py --input ${WORKSPACE}/cpp_code --output ${NODE_OUTPUT_DIR}
+                        export PYTHONPATH=${PYTHON_PATH}
+                        python3 run_cbn_workflow.py cpp
                     """
                 }
             }
@@ -87,16 +75,16 @@ pipeline {
 
         stage('Push Node.js Output to GitHub') {
             when {
-                expression { return fileExists("${NODE_OUTPUT_DIR}") }
+                expression { fileExists("${NODE_OUTPUT_DIR}") }
             }
             steps {
                 dir("${NODE_OUTPUT_DIR}") {
                     sh """
                         git init
-                        git remote add origin https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git
+                        git remote add origin https://github.com/Mrityunjai-demo/NodeJS_Output.git || true
                         git add .
-                        git commit -m "Automated Node.js output commit"
-                        git push -u origin main
+                        git commit -m "Update Node.js output from Jenkins build ${BUILD_NUMBER}" || true
+                        git push -u origin main --force
                     """
                 }
             }
@@ -105,14 +93,14 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning workspace...'
+            echo "Cleaning workspace..."
             cleanWs()
         }
-        success {
-            echo 'Pipeline completed successfully!'
-        }
         failure {
-            echo 'Pipeline failed!'
+            echo "Pipeline failed!"
+        }
+        success {
+            echo "Pipeline completed successfully!"
         }
     }
 }
