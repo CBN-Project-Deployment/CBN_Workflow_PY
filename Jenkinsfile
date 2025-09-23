@@ -2,11 +2,13 @@ pipeline {
     agent any
 
     environment {
-        PYTHON_VENV = "${WORKSPACE}/CBN_Workflow_PY/venv"
-        INPUT_DIR = "${WORKSPACE}/CBN_Workflow_PY/input_files"  // <-- define INPUT_DIR
+        WORKSPACE_DIR = "${env.WORKSPACE}"
+        PYTHON_VENV = "${env.WORKSPACE}/CBN_Workflow_PY/venv"
+        PYTHON_PATH = "${env.WORKSPACE}/CBN_Workflow_PY"
     }
 
     stages {
+
         stage('Checkout SCM') {
             steps {
                 checkout scm
@@ -17,15 +19,14 @@ pipeline {
             parallel {
                 stage('Python Workflow') {
                     steps {
-                        dir('CBN_Workflow_PY') {
+                        dir("${WORKSPACE}/CBN_Workflow_PY") {
                             git url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git', branch: 'main'
                         }
                     }
                 }
-
                 stage('C++ Code') {
                     steps {
-                        dir('cpp_code') {
+                        dir("${WORKSPACE}/cpp_code") {
                             git url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git', branch: 'main'
                         }
                     }
@@ -35,7 +36,7 @@ pipeline {
 
         stage('Setup Python Environment') {
             steps {
-                dir('CBN_Workflow_PY') {
+                dir("${WORKSPACE}/CBN_Workflow_PY") {
                     sh """
                         rm -rf venv
                         python3 -m venv venv
@@ -49,12 +50,12 @@ pipeline {
 
         stage('Verify cbn_config.py') {
             steps {
-                dir('CBN_Workflow_PY') {
+                dir("${WORKSPACE}/CBN_Workflow_PY") {
                     script {
                         if (!fileExists('cbn_config.py')) {
-                            error "cbn_config.py does not exist!"
+                            error "cbn_config.py not found!"
                         } else {
-                            echo " cbn_config.py exists, continuing..."
+                            echo "✅ cbn_config.py exists, continuing..."
                         }
                     }
                 }
@@ -63,13 +64,18 @@ pipeline {
 
         stage('Prepare Input Files') {
             steps {
-                dir('CBN_Workflow_PY') {
+                dir("${WORKSPACE}/CBN_Workflow_PY") {
                     sh """
-                        mkdir -p ${INPUT_DIR}/cpp
-                        mkdir -p ${INPUT_DIR}/stored_procedure
-
-                        # Copy C++ files into input directory
-                        cp ../cpp_code/*.cpp ${INPUT_DIR}/cpp/ || echo "No cpp files found"
+                        mkdir -p input_files/cpp
+                        mkdir -p input_files/stored_procedure
+                        cp ../cpp_code/GridCell.cpp \
+                           ../cpp_code/GridCellBase.cpp \
+                           ../cpp_code/GridCtrl.cpp \
+                           ../cpp_code/GridCtrl_All.cpp \
+                           ../cpp_code/GridDropTarget.cpp \
+                           ../cpp_code/InPlaceEdit.cpp \
+                           ../cpp_code/TitleTip.cpp \
+                           input_files/cpp/
                     """
                 }
             }
@@ -77,13 +83,13 @@ pipeline {
 
         stage('Run Python CbN Workflow') {
             steps {
-                withCredentials([string(credentialsId: 'CBN_PASSWORD', variable: 'CBN_PASSWORD')]) {
-                    dir('CBN_Workflow_PY') {
+                withCredentials([string(credentialsId: 'CBN_PASSWORD_ID', variable: 'CBN_PASSWORD')]) {
+                    dir("${WORKSPACE}/CBN_Workflow_PY") {
                         sh """
                             . venv/bin/activate
-                            export PYTHONPATH=${WORKSPACE}/CBN_Workflow_PY
-                            echo " CBN_PASSWORD injected into environment."
-                            python3 run_cbn_workflow.py cpp
+                            export PYTHONPATH=${PYTHON_PATH}
+                            echo "CBN_PASSWORD injected into environment."
+                            python3 run_cbn_workflow.py --cpp-dir ${WORKSPACE}/CBN_Workflow_PY/input_files/cpp
                         """
                     }
                 }
@@ -91,22 +97,22 @@ pipeline {
         }
 
         stage('Push Node.js Output to GitHub') {
-            when {
-                expression { return false } // skip if workflow fails
-            }
             steps {
-                echo "This stage will be skipped due to earlier failures."
+                echo "Skipping push stage for now. Add Git commands here if needed."
             }
         }
     }
 
     post {
         always {
-            echo " Cleaning worksp"
+            echo "🧹 Cleaning workspace..."
             cleanWs()
         }
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
         failure {
-            echo "Pipeline failed!"
+            echo "❌ Pipeline failed!"
         }
     }
 }
