@@ -52,7 +52,7 @@ pipeline {
                         if (!fileExists('cbn_config.py')) {
                             error "cbn_config.py not found!"
                         } else {
-                            echo "✅ cbn_config.py exists, continuing..."
+                            echo "cbn_config.py exists, continuing..."
                         }
                     }
                 }
@@ -102,14 +102,14 @@ pipeline {
 
     post {
         always {
-            echo "🧹 Cleaning workspace..."
+            echo "Cleaning workspa"
             cleanWs()
         }
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "pipeline completed successfully!"
         }
         failure {
-            echo "❌ Pipeline failed!"
+            echo "pipeline failed!"
         }
     }
 }
