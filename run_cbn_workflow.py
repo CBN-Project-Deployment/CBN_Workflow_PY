@@ -160,11 +160,11 @@ def main():
         sys.exit(1)
 
     FILETYPE = sys.argv[1]
-    PASSWORD = os.environ.get("CBN_PASSWORD")
+    PASSWORD = os.getenv("CBN_PASSWORD")
 
     if not PASSWORD:
-        print("Environment variable 'CBN_PASSWORD' not set.")
-        sys.exit(1)
+        print("⚠️  CBN_PASSWORD not set — running in NO-AUTH mode (test only).")
+        PASSWORD = None
 
     cbn_project = cfg.CBN_PROJECT
     INPUT_DIR = f"{cfg.INPUT_DIR}/{FILETYPE}"
@@ -174,6 +174,45 @@ def main():
     if not os.path.exists(INPUT_DIR) or not any(Path(INPUT_DIR).iterdir()):
         print(f"No input files found in {INPUT_DIR}")
         sys.exit(1)
+
+    # Create output directory if needed
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    try:
+        if PASSWORD:
+            # Step 1: Authenticate and retrieve token
+            token = authenticate(PASSWORD)
+            print("✅ Authentication successful.")
+
+            # Step 2: Retrieve project and wallet ID
+            headers = {'Authorization': f'Bearer {token}'}
+            project_id, wallet_id = get_user_project(headers, cbn_project)
+        else:
+            # Fallback test mode
+            print("🚀 Skipping authentication and project lookup (test mode).")
+            headers, project_id, wallet_id = {}, None, None
+
+    except requests.HTTPError as err:
+        print(f"HTTP error occurred: {err}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        sys.exit(1)
+
+    # Determine suffix and encoding
+    suffix = "datastage" if FILETYPE == "datastage" else "stored-procedure"
+    encoding = "utf-8" if FILETYPE == "datastage" else "utf-16"
+
+    # Step 3: Start stream listener in background
+    stream_thread = threading.Thread(target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True)
+    stream_thread.start()
+    time.sleep(2)  # Ensure the stream is ready
+
+    # Step 4: Send files and get execution IDs
+    execution_ids = send_file_to_api(INPUT_DIR, suffix, headers, project_id, wallet_id, encoding)
+
+    # Step 5: Check for stream to end
+    check_for_stream(execution_ids)
 
     # Create output directory if needed
     os.makedirs(OUTPUT_DIR, exist_ok=True)
