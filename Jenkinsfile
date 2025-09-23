@@ -25,7 +25,8 @@ pipeline {
                 deleteDir()
                 
                 // Clone C++ code
-                git branch: 'main', url: "${CPP_REPO}", credentialsId: "${GIT_CREDENTIALS}"
+                git branch: 'main', url: 'https://github.com/YourUser/CppRepo.git', credentialsId: 'github-creds'
+"
                 
                 // Move to cpp_code folder
                 sh 'mkdir -p ${CPP_DIR} && mv * ${CPP_DIR}/'
