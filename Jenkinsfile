@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        WORKSPACE_DIR = "${env.WORKSPACE}"
-        PYTHON_PATH   = "${env.WORKSPACE}/CBN_Workflow_PY"
+        WORKSPACE_DIR   = "${env.WORKSPACE}"
+        PYTHON_PATH     = "${env.WORKSPACE}/CBN_Workflow_PY"
         NODE_OUTPUT_DIR = "${env.WORKSPACE}/nodejs_output"
     }
 
@@ -38,15 +38,10 @@ pipeline {
             steps {
                 dir('CBN_Workflow_PY') {
                     sh '''
-                        # Remove old virtualenv
                         rm -rf venv
-
-                        # Create clean virtualenv
                         python3 -m venv venv
                         . venv/bin/activate
                         python3 -m pip install --upgrade pip
-
-                        # Install requirements if file exists
                         if [ -f requirements.txt ]; then
                             pip install -r requirements.txt
                         else
@@ -62,9 +57,9 @@ pipeline {
                 dir('CBN_Workflow_PY') {
                     script {
                         if (!fileExists('cbn_config.py')) {
-                            error "ERROR: cbn_config.py not found in CBN_Workflow_PY. Pipeline cannot continue."
+                            error "❌ ERROR: cbn_config.py not found in CBN_Workflow_PY repo!"
                         } else {
-                            echo "cbn_config.py exists, continuing..."
+                            echo "✅ cbn_config.py exists, continuing..."
                         }
                     }
                 }
@@ -79,6 +74,11 @@ pipeline {
                             . venv/bin/activate
                             mkdir -p ${NODE_OUTPUT_DIR}
                             export PYTHONPATH=${PYTHON_PATH}
+
+                            # Export secret into runtime environment
+                            export CBN_PASSWORD=${CBN_PASSWORD}
+
+                            echo "🔑 CBN_PASSWORD injected into environment."
                             python3 run_cbn_workflow.py cpp
                         '''
                     }
@@ -91,21 +91,21 @@ pipeline {
                 expression { return fileExists("${NODE_OUTPUT_DIR}") }
             }
             steps {
-                echo "Skipping for now: implement your Node.js push logic here"
+                echo "📦 Node.js output ready — implement push to GitHub here."
             }
         }
     }
 
     post {
         always {
-            echo "Cleaning workspace..."
+            echo "🧹 Cleaning workspace..."
             cleanWs()
         }
         failure {
-            echo "Pipeline failed!"
+            echo "❌ Pipeline failed!"
         }
         success {
-            echo "Pipeline completed successfully!"
+            echo "✅ Pipeline completed successfully!"
         }
     }
 }
