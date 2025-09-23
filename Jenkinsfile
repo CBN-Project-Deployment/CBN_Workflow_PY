@@ -52,7 +52,7 @@ pipeline {
                         if (!fileExists('cbn_config.py')) {
                             error "cbn_config.py not found!"
                         } else {
-                            echo "cbn_config.py exists, continuing..."
+                            echo "✅ cbn_config.py exists, continuing..."
                         }
                     }
                 }
@@ -70,4 +70,42 @@ pipeline {
                 }
             }
         }
-    }  
+
+        stage('Run Python CbN Workflow') {
+            steps {
+                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                    script {
+                        // Check if Python workflow script exists
+                        def workflowScript = ''
+                        if (fileExists('run_cbn.py')) {
+                            workflowScript = 'run_cbn.py'
+                        } else if (fileExists('cbn_workflow.py')) {
+                            workflowScript = 'cbn_workflow.py'
+                        } else {
+                            error "No Python workflow script found!"
+                        }
+
+                        echo "Running Python workflow: ${workflowScript}"
+                        sh """
+                            . venv/bin/activate
+                            python3 ${workflowScript} input_files/cpp
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "🧹 Cleaning workspace..."
+            cleanWs()
+        }
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline failed!"
+        }
+    }
+}
