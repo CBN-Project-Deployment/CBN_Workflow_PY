@@ -2,27 +2,31 @@ pipeline {
     agent any
 
     environment {
-        // Repositories
-        PYTHON_REPO = 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git'
-        CPP_REPO    = 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git'
-        NODEJS_REPO = 'git@github.com:Mrityunjai-demo/NodeJS_Output.git'
+        PYTHON_ENV = "venv"
     }
 
     stages {
+
+        stage('Checkout SCM') {
+            steps {
+                checkout scm
+            }
+        }
 
         stage('Checkout Repositories') {
             parallel {
                 stage('Python Workflow') {
                     steps {
                         dir('CBN_Workflow_PY') {
-                            git branch: 'main', url: "${env.PYTHON_REPO}"
+                            git branch: 'main', url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git'
                         }
                     }
                 }
+
                 stage('C++ Code') {
                     steps {
                         dir('cpp_code') {
-                            git branch: 'main', url: "${env.CPP_REPO}"
+                            git branch: 'main', url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git'
                         }
                     }
                 }
@@ -48,7 +52,7 @@ pipeline {
                 dir('CBN_Workflow_PY') {
                     script {
                         if (!fileExists('cbn_config.py')) {
-                            error "❌ cbn_config.py not found! Please add it to the repo."
+                            error "cbn_config.py is missing!"
                         } else {
                             echo "✅ cbn_config.py exists, continuing..."
                         }
@@ -64,7 +68,7 @@ pipeline {
                         sh '''
                             . venv/bin/activate
                             mkdir -p ../nodejs_output
-                            export PYTHONPATH=$PWD:$PYTHONPATH
+                            export PYTHONPATH=$(pwd):
                             echo "🔑 CBN_PASSWORD injected into environment."
                             python3 run_cbn_workflow.py cpp
                         '''
@@ -74,35 +78,25 @@ pipeline {
         }
 
         stage('Push Node.js Output to GitHub') {
+            when {
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+            }
             steps {
-                dir('nodejs_output') {
-                    withCredentials([sshUserPrivateKey(credentialsId: 'git-ssh-key', keyFileVariable: 'SSH_KEY')]) {
-                        sh '''
-                            eval `ssh-agent -s`
-                            ssh-add $SSH_KEY
-                            git init
-                            git remote add origin ${NODEJS_REPO}
-                            git checkout -b main || git checkout main
-                            git add .
-                            git -c user.name="Jenkins" -c user.email="jenkins@example.com" commit -m "Automated commit from Jenkins CbN workflow" || echo "No changes to commit"
-                            git push -u origin main
-                        '''
-                    }
-                }
+                echo "Pushing Node.js output... (implement if needed)"
             }
         }
     }
 
     post {
+        always {
+            echo "🧹 Cleaning workspace..."
+            cleanWs()
+        }
         success {
             echo "✅ Pipeline completed successfully!"
         }
         failure {
             echo "❌ Pipeline failed!"
-        }
-        always {
-            echo "🧹 Cleaning workspace..."
-            cleanWs()
         }
     }
 }
