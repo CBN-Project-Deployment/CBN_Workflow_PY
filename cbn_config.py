@@ -1,11 +1,7 @@
-# cbn_config.py
-USERNAME = "your_username_here"
-ROPC_CLIENT_ID = "your_client_id_here"
-AUTH_ROPC_URL = "https://auth.example.com/oauth/token"
-URL_BASE = "https://api.example.com"
-
-# This is missing in your file, add it
-CBN_PROJECT = "your_project_name_here"
-
-INPUT_DIR = "/path/to/input"
-OUTPUT_DIR = "/path/to/output"
+INPUT_DIR = "/absolute/path/to/input"  # make sure this exists on the Jenkins agent
+OUTPUT_DIR = "/absolute/path/to/output"
+CBN_PROJECT = "YourProjectName"
+USERNAME = "your_username"
+ROPC_CLIENT_ID = "client_id_here"
+URL_BASE = "https://cbn.example.com/api"
+AUTH_ROPC_URL = "https://cbn.example.com/auth"
