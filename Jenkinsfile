@@ -2,63 +2,71 @@ pipeline {
     agent any
 
     environment {
-        PYTHON_REPO = 'CBN_Workflow_PY'                     // Python workflow repo folder
-        CPP_REPO    = 'cpp_code'                             // C++ repo folder
-        NODE_OUTPUT = 'nodejs_output'                        // Output folder for Node.js code
-        GITHUB_CPP  = 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git'
-        GITHUB_PY   = 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git'
-        GITHUB_NODE = 'https://github.com/Mrityunjai-demo/NodeJS_Output.git'  // Output repo
-        GIT_CREDENTIALS = 'github-creds'                     // Jenkins Git credentials ID
+        PYTHON_VENV = "venv"
+        NODEJS_OUTPUT = "nodejs_output"
+        CPLUSPLUS_REPO = "https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git"
+        PYTHON_WORKFLOW_REPO = "https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git"
     }
 
     stages {
         stage('Checkout Python Workflow') {
             steps {
-                dir(PYTHON_REPO) {
-                    git branch: 'main',
-                        url: env.GITHUB_PY,
-                        credentialsId: env.GIT_CREDENTIALS
+                dir('CBN_Workflow_PY') {
+                    git url: "${PYTHON_WORKFLOW_REPO}", branch: 'main'
                 }
             }
         }
 
-        stage('Clone C++ Repo') {
+        stage('Clone C++ Repository') {
             steps {
-                dir(CPP_REPO) {
-                    git branch: 'main',
-                        url: env.GITHUB_CPP,
-                        credentialsId: env.GIT_CREDENTIALS
+                dir('cpp_code') {
+                    git url: "${CPLUSPLUS_REPO}", branch: 'main'
+                }
+            }
+        }
+
+        stage('Setup Python Environment & Install Dependencies') {
+            steps {
+                dir('CBN_Workflow_PY') {
+                    sh """
+                        python3 -m venv ${PYTHON_VENV}
+                        . ${PYTHON_VENV}/bin/activate
+                        pip install --upgrade pip
+                        if [ -f requirements.txt ]; then
+                            pip install -r requirements.txt
+                        fi
+                        # Ensure 'requests' and other common dependencies are installed
+                        pip install requests
+                    """
                 }
             }
         }
 
         stage('Run Python CbN Workflow') {
             steps {
-                dir(PYTHON_REPO) {
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        if [ -f requirements.txt ]; then
-                            pip install -r requirements.txt
-                        fi
-                        mkdir -p ../${NODE_OUTPUT}
-                        python3 run_cbn_workflow.py --input ../${CPP_REPO} --output ../${NODE_OUTPUT}
-                    '''
+                dir('CBN_WorkFLOW_PY') {
+                    sh """
+                        mkdir -p ../${NODEJS_OUTPUT}
+                        . ${PYTHON_VENV}/bin/activate
+                        python3 run_cbn_workflow.py --input ../cpp_code --output ../${NODEJS_OUTPUT}
+                    """
                 }
             }
         }
 
         stage('Push Node.js Output to GitHub') {
             steps {
-                dir(NODE_OUTPUT) {
-                    sh '''
-                        git init
-                        git remote add origin ${GITHUB_NODE}
-                        git add .
-                        git commit -m "Add Node.js output from CbN workflow"
-                        git push -u origin main --force
-                    '''
+                dir("${NODEJS_OUTPUT}") {
+                    script {
+                        sh """
+                            git init
+                            git remote add origin https://github.com/Mrityunjai-demo/NodeJS_Output.git
+                            git checkout -b main || git switch -c main
+                            git add .
+                            git commit -m "Add Node.js output from CbN workflow"
+                            git push -u origin main --force
+                        """
+                    }
                 }
             }
         }
@@ -66,8 +74,14 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning workspace...'
+            echo "Cleaning workspace..."
             cleanWs()
+        }
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed!"
         }
     }
 }
