@@ -2,12 +2,11 @@ pipeline {
     agent any
 
     environment {
-        // Environment variable for Python venv
         PYTHON_VENV = "${WORKSPACE}/CBN_Workflow_PY/venv"
+        INPUT_DIR = "${WORKSPACE}/CBN_Workflow_PY/input_files"  // <-- define INPUT_DIR
     }
 
     stages {
-
         stage('Checkout SCM') {
             steps {
                 checkout scm
@@ -55,7 +54,7 @@ pipeline {
                         if (!fileExists('cbn_config.py')) {
                             error "cbn_config.py does not exist!"
                         } else {
-                            echo "✅ cbn_config.py exists, continuing..."
+                            echo " cbn_config.py exists, continuing..."
                         }
                     }
                 }
@@ -66,11 +65,10 @@ pipeline {
             steps {
                 dir('CBN_Workflow_PY') {
                     sh """
-                        # Make sure input directories exist
                         mkdir -p ${INPUT_DIR}/cpp
                         mkdir -p ${INPUT_DIR}/stored_procedure
 
-                        # Copy C++ code into input directory
+                        # Copy C++ files into input directory
                         cp ../cpp_code/*.cpp ${INPUT_DIR}/cpp/ || echo "No cpp files found"
                     """
                 }
@@ -84,7 +82,7 @@ pipeline {
                         sh """
                             . venv/bin/activate
                             export PYTHONPATH=${WORKSPACE}/CBN_Workflow_PY
-                            echo "🔑 CBN_PASSWORD injected into environment."
+                            echo " CBN_PASSWORD injected into environment."
                             python3 run_cbn_workflow.py cpp
                         """
                     }
@@ -94,7 +92,7 @@ pipeline {
 
         stage('Push Node.js Output to GitHub') {
             when {
-                expression { return false } // Skip if workflow fails
+                expression { return false } // skip if workflow fails
             }
             steps {
                 echo "This stage will be skipped due to earlier failures."
@@ -104,11 +102,11 @@ pipeline {
 
     post {
         always {
-            echo "🧹 Cleaning workspace..."
+            echo " Cleaning worksp"
             cleanWs()
         }
         failure {
-            echo "❌ Pipeline failed!"
+            echo "Pipeline failed!"
         }
     }
 }
