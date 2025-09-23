@@ -1,5 +1,7 @@
-INPUT_DIR = "/absolute/path/to/input"  # make sure this exists on the Jenkins agent
-OUTPUT_DIR = "/absolute/path/to/output"
+# cbn_config.py
+INPUT_DIR = "input_files"
+OUTPUT_DIR = "output_files"
+
 CBN_PROJECT = "YourProjectName"
 USERNAME = "your_username"
 ROPC_CLIENT_ID = "client_id_here"
