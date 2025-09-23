@@ -77,8 +77,8 @@ pipeline {
                     script {
                         // Check if Python workflow script exists
                         def workflowScript = ''
-                        if (fileExists('run_cbn.py')) {
-                            workflowScript = 'run_cbn.py'
+                        if (fileExists('run_cbn_workflow.py')) {
+                            workflowScript = 'run_cbn_workflow.py'
                         } else if (fileExists('cbn_workflow.py')) {
                             workflowScript = 'cbn_workflow.py'
                         } else {
