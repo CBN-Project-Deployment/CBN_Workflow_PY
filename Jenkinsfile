@@ -2,13 +2,10 @@ pipeline {
     agent any
 
     environment {
-        WORKSPACE_DIR = "${env.WORKSPACE}"
-        PYTHON_VENV = "${env.WORKSPACE}/CBN_Workflow_PY/venv"
-        PYTHON_PATH = "${env.WORKSPACE}/CBN_Workflow_PY"
+        PYTHONPATH = "${WORKSPACE}/CBN_Workflow_PY"
     }
 
     stages {
-
         stage('Checkout SCM') {
             steps {
                 checkout scm
@@ -37,13 +34,13 @@ pipeline {
         stage('Setup Python Environment') {
             steps {
                 dir("${WORKSPACE}/CBN_Workflow_PY") {
-                    sh """
+                    sh '''
                         rm -rf venv
                         python3 -m venv venv
                         . venv/bin/activate
                         python3 -m pip install --upgrade pip
                         pip install requests
-                    """
+                    '''
                 }
             }
         }
@@ -65,40 +62,40 @@ pipeline {
         stage('Prepare Input Files') {
             steps {
                 dir("${WORKSPACE}/CBN_Workflow_PY") {
-                    sh """
+                    sh '''
                         mkdir -p input_files/cpp
                         mkdir -p input_files/stored_procedure
-                        cp ../cpp_code/GridCell.cpp \
-                           ../cpp_code/GridCellBase.cpp \
-                           ../cpp_code/GridCtrl.cpp \
-                           ../cpp_code/GridCtrl_All.cpp \
-                           ../cpp_code/GridDropTarget.cpp \
-                           ../cpp_code/InPlaceEdit.cpp \
-                           ../cpp_code/TitleTip.cpp \
-                           input_files/cpp/
-                    """
+                        cp ../cpp_code/GridCell.cpp ../cpp_code/GridCellBase.cpp ../cpp_code/GridCtrl.cpp ../cpp_code/GridCtrl_All.cpp ../cpp_code/GridDropTarget.cpp ../cpp_code/InPlaceEdit.cpp ../cpp_code/TitleTip.cpp input_files/cpp/
+                    '''
                 }
             }
         }
 
         stage('Run Python CbN Workflow') {
             steps {
-                withCredentials([string(credentialsId: 'CBN_PASSWORD_ID', variable: 'CBN_PASSWORD')]) {
-                    dir("${WORKSPACE}/CBN_Workflow_PY") {
-                        sh """
-                            . venv/bin/activate
-                            export PYTHONPATH=${PYTHON_PATH}
-                            echo "CBN_PASSWORD injected into environment."
-                            python3 run_cbn_workflow.py --cpp-dir ${WORKSPACE}/CBN_Workflow_PY/input_files/cpp
-                        """
+                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                    script {
+                        // Only use credentials if provided
+                        def cbnPasswordId = env.CBN_PASSWORD_ID
+                        if (cbnPasswordId) {
+                            withCredentials([string(credentialsId: cbnPasswordId, variable: 'CBN_PASSWORD')]) {
+                                sh ". venv/bin/activate && python3 run_cbn.py input_files/cpp"
+                            }
+                        } else {
+                            echo "No CBN_PASSWORD provided, running without credentials."
+                            sh ". venv/bin/activate && python3 run_cbn.py input_files/cpp"
+                        }
                     }
                 }
             }
         }
 
         stage('Push Node.js Output to GitHub') {
+            when {
+                expression { false } // skipped for testing without credentials
+            }
             steps {
-                echo "Skipping push stage for now. Add Git commands here if needed."
+                echo "Skipping push stage in test run."
             }
         }
     }
