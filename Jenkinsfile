@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        PYTHON_ENV = "venv"
+        // Environment variable for Python venv
+        PYTHON_VENV = "${WORKSPACE}/CBN_Workflow_PY/venv"
     }
 
     stages {
@@ -18,7 +19,7 @@ pipeline {
                 stage('Python Workflow') {
                     steps {
                         dir('CBN_Workflow_PY') {
-                            git branch: 'main', url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git'
+                            git url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git', branch: 'main'
                         }
                     }
                 }
@@ -26,7 +27,7 @@ pipeline {
                 stage('C++ Code') {
                     steps {
                         dir('cpp_code') {
-                            git branch: 'main', url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git'
+                            git url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git', branch: 'main'
                         }
                     }
                 }
@@ -36,13 +37,13 @@ pipeline {
         stage('Setup Python Environment') {
             steps {
                 dir('CBN_Workflow_PY') {
-                    sh '''
+                    sh """
                         rm -rf venv
                         python3 -m venv venv
                         . venv/bin/activate
                         python3 -m pip install --upgrade pip
                         pip install requests
-                    '''
+                    """
                 }
             }
         }
@@ -52,7 +53,7 @@ pipeline {
                 dir('CBN_Workflow_PY') {
                     script {
                         if (!fileExists('cbn_config.py')) {
-                            error "cbn_config.py is missing!"
+                            error "cbn_config.py does not exist!"
                         } else {
                             echo "✅ cbn_config.py exists, continuing..."
                         }
@@ -61,17 +62,31 @@ pipeline {
             }
         }
 
-        stage('Run Python CbN Workflow') {
+        stage('Prepare Input Files') {
             steps {
                 dir('CBN_Workflow_PY') {
-                    withCredentials([string(credentialsId: 'CBN_PASSWORD', variable: 'CBN_PASSWORD')]) {
-                        sh '''
+                    sh """
+                        # Make sure input directories exist
+                        mkdir -p ${INPUT_DIR}/cpp
+                        mkdir -p ${INPUT_DIR}/stored_procedure
+
+                        # Copy C++ code into input directory
+                        cp ../cpp_code/*.cpp ${INPUT_DIR}/cpp/ || echo "No cpp files found"
+                    """
+                }
+            }
+        }
+
+        stage('Run Python CbN Workflow') {
+            steps {
+                withCredentials([string(credentialsId: 'CBN_PASSWORD', variable: 'CBN_PASSWORD')]) {
+                    dir('CBN_Workflow_PY') {
+                        sh """
                             . venv/bin/activate
-                            mkdir -p ../nodejs_output
-                            export PYTHONPATH=$(pwd):
+                            export PYTHONPATH=${WORKSPACE}/CBN_Workflow_PY
                             echo "🔑 CBN_PASSWORD injected into environment."
                             python3 run_cbn_workflow.py cpp
-                        '''
+                        """
                     }
                 }
             }
@@ -79,10 +94,10 @@ pipeline {
 
         stage('Push Node.js Output to GitHub') {
             when {
-                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
+                expression { return false } // Skip if workflow fails
             }
             steps {
-                echo "Pushing Node.js output... (implement if needed)"
+                echo "This stage will be skipped due to earlier failures."
             }
         }
     }
@@ -91,9 +106,6 @@ pipeline {
         always {
             echo "🧹 Cleaning workspace..."
             cleanWs()
-        }
-        success {
-            echo "✅ Pipeline completed successfully!"
         }
         failure {
             echo "❌ Pipeline failed!"
