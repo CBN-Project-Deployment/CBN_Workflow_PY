@@ -64,29 +64,32 @@ def listen_to_stream(headers, output_path):
     """
     stream_url = f"{cfg.URL_BASE}/stream"
 
-    with requests.get(stream_url, headers=headers, stream=True) as response:
-        response.raise_for_status()
+    try:
+        with requests.get(stream_url, headers=headers, stream=True) as response:
+            response.raise_for_status()
 
-        for line in response.iter_lines():
-            decoded_line = line.decode("utf-8")
-            if decoded_line.startswith("data: "):
-                json_part = decoded_line[6:].strip()
-                if not json_part:
-                    continue
-                try:
-                    data = json.loads(json_part)
-                    execution_id = data.get("id")
-                    result = data.get("data", {}).get("Final_Result")
-                    if execution_id and result:
-                        stream_results.append(execution_id)
-                        filename = execution_id_dict.get(execution_id)
-                        if filename:
-                            output_file = Path(output_path) / f"{filename}.md"
-                            with open(output_file, "w", encoding="utf-8") as f:
-                                f.write(result)
-                            print(f"{filename}.md : file created.")
-                except json.JSONDecodeError:
-                    continue
+            for line in response.iter_lines():
+                decoded_line = line.decode('utf-8')
+                if decoded_line.startswith("data: "):
+                    json_part = decoded_line[6:].strip()
+                    if not json_part:
+                        continue
+                    try:
+                        data = json.loads(json_part)
+                        execution_id = data.get('id')
+                        result = data.get('data', {}).get('Final_Result')
+                        if execution_id and result:
+                            stream_results.append(execution_id)
+                            filename = execution_id_dict.get(execution_id)
+                            if filename:
+                                output_file = Path(output_path) / f"{filename}.md"
+                                with open(output_file, "w", encoding="utf-8") as f:
+                                    f.write(result)
+                                print(f"{filename}.md : file created.")
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        print(f"⚠️ Stream listener error: {e}")
 
 
 # -------------------------------
@@ -97,8 +100,20 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
     Send all files in the specified directory to the API for processing.
     Returns a dictionary mapping filenames to execution IDs.
     """
-    url = f"{cfg.URL_BASE}/dags/api-workflow-{suffix}-01"
     dir_path = Path(file_path)
+    execution_map = {}
+
+    # If headers or project_id missing, skip API call (test mode)
+    test_mode = not headers or not project_id or not wallet_id
+    if test_mode:
+        print("⚠️  Test mode: skipping API call, generating dummy execution IDs")
+        for file in dir_path.iterdir():
+            if file.is_file():
+                execution_id = f"dummy-{file.stem}"
+                execution_map[execution_id] = file.name
+        return execution_map
+
+    url = f"{cfg.URL_BASE}/dags/api-workflow-{suffix}-01"
 
     for file in dir_path.iterdir():
         if file.is_file():
@@ -120,17 +135,22 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
             response = requests.post(url, headers=headers, json=body)
 
             if response.ok:
-                execution_id = response.json().get("execution_id")
+                try:
+                    execution_id = response.json().get("execution_id")
+                except json.JSONDecodeError:
+                    print(f"⚠️ Failed to decode JSON response for {file.name}")
+                    continue
+
                 if execution_id:
-                    execution_id_dict[execution_id] = file.name
+                    execution_map[execution_id] = file.name
                 else:
-                    print(f"No execution_id in response: {response.json()}")
+                    print(f"No execution_id in response: {response.text}")
             else:
                 print(
                     f"Failed to process {file.name}: {response.status_code} - {response.text}"
                 )
 
-    return execution_id_dict
+    return execution_map
 
 
 # -------------------------------
@@ -162,7 +182,7 @@ def main():
     Main function to execute the workflow: authenticate, send files, listen for results, and save outputs.
     """
     if len(sys.argv) != 2:
-        print("Usage: python run_cbn_workflow.py [cpp|stored_procedure|datastage]")
+        print("Usage: python run_cbn_workflow.py [cpp|stored_procedure]")
         sys.exit(1)
 
     FILETYPE = sys.argv[1]
@@ -198,7 +218,7 @@ def main():
             print("✅ Authentication successful.")
 
             # Step 2: Retrieve project and wallet ID
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {'Authorization': f'Bearer {token}'}
             project_id, wallet_id = get_user_project(headers, cbn_project)
         else:
             # Fallback test mode
@@ -212,35 +232,18 @@ def main():
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
-    # -------------------------------
-    # Proper suffix & encoding mapping
-    # -------------------------------
-    suffix_map = {
-        "cpp": "cpp",
-        "stored_procedure": "stored-procedure",
-        "datastage": "datastage",
-    }
-    suffix = suffix_map.get(FILETYPE)
-    if not suffix:
-        print(f"❌ Unsupported filetype: {FILETYPE}")
-        sys.exit(1)
-
-    encoding_map = {
-        "cpp": "utf-8",                 # C++ source files
-        "stored_procedure": "utf-16",   # SPs often in UTF-16
-        "datastage": "utf-8",           # Job configs usually text/JSON
-    }
-    encoding = encoding_map.get(FILETYPE, "utf-8")
+    # Determine suffix and encoding
+    suffix = "datastage" if FILETYPE == "datastage" else "stored-procedure"
+    encoding = "utf-8" if FILETYPE == "datastage" else "utf-16"
 
     # Step 3: Start stream listener in background
-    stream_thread = threading.Thread(
-        target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True
-    )
+    stream_thread = threading.Thread(target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True)
     stream_thread.start()
     time.sleep(2)  # Ensure the stream is ready
 
     # Step 4: Send files and get execution IDs
     execution_ids = send_file_to_api(INPUT_DIR, suffix, headers, project_id, wallet_id, encoding)
+    execution_id_dict.update(execution_ids)
 
     # Step 5: Check for stream to end
     check_for_stream(execution_ids)
@@ -249,5 +252,5 @@ def main():
 # -------------------------------
 # SCRIPT ENTRY POINT
 # -------------------------------
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
