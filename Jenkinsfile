@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-         
-        PYTHONPATH = "${WORKSPACE}/CBN_Workflow_PY"
+        CBN_PASSWORD = credentials('cbn-password')
     }
 
     stages {
@@ -17,15 +16,15 @@ pipeline {
             parallel {
                 stage('Python Workflow') {
                     steps {
-                        dir("${WORKSPACE}/CBN_Workflow_PY") {
-                            git url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git', branch: 'main'
+                        dir('CBN_Workflow_PY') {
+                            git 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git'
                         }
                     }
                 }
                 stage('C++ Code') {
                     steps {
-                        dir("${WORKSPACE}/cpp_code") {
-                            git url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git', branch: 'main'
+                        dir('cpp_code') {
+                            git 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git'
                         }
                     }
                 }
@@ -34,7 +33,7 @@ pipeline {
 
         stage('Setup Python Environment') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     sh '''
                         rm -rf venv
                         python3 -m venv venv
@@ -48,13 +47,12 @@ pipeline {
 
         stage('Verify cbn_config.py') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     script {
                         if (!fileExists('cbn_config.py')) {
-                            error "cbn_config.py not found!"
-                        } else {
-                            echo "✅ cbn_config.py exists, continuing..."
+                            error "❌ cbn_config.py not found!"
                         }
+                        echo "✅ cbn_config.py exists, continuing..."
                     }
                 }
             }
@@ -62,11 +60,11 @@ pipeline {
 
         stage('Prepare Input Files') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     sh '''
                         mkdir -p input_files/cpp
                         mkdir -p input_files/stored_procedure
-                        cp ../cpp_code/GridCell.cpp ../cpp_code/GridCellBase.cpp ../cpp_code/GridCtrl.cpp ../cpp_code/GridCtrl_All.cpp ../cpp_code/GridDropTarget.cpp ../cpp_code/InPlaceEdit.cpp ../cpp_code/TitleTip.cpp input_files/cpp/
+                        cp ../cpp_code/*.cpp input_files/cpp/
                     '''
                 }
             }
@@ -74,23 +72,17 @@ pipeline {
 
         stage('Run Python CbN Workflow') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     script {
-                        // Check if Python workflow script exists
-                        def workflowScript = ''
                         if (fileExists('run_cbn_workflow.py')) {
-                            workflowScript = 'run_cbn_workflow.py'
-                        } else if (fileExists('cbn_workflow.py')) {
-                            workflowScript = 'cbn_workflow.py'
+                            echo "Running Python workflow: run_cbn_workflow.py"
+                            sh '''
+                                . venv/bin/activate
+                                python3 run_cbn_workflow.py cpp
+                            '''
                         } else {
-                            error "No Python workflow script found!"
+                            error "❌ run_cbn_workflow.py not found!"
                         }
-
-                        echo "Running Python workflow: ${workflowScript}"
-                        sh """
-                            . venv/bin/activate
-                            python3 ${workflowScript} input_files/cpp
-                        """
                     }
                 }
             }
@@ -101,9 +93,6 @@ pipeline {
         always {
             echo "🧹 Cleaning workspace..."
             cleanWs()
-        }
-        success {
-            echo "✅ Pipeline completed successfully!"
         }
         failure {
             echo "❌ Pipeline failed!"
