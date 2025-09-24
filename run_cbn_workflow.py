@@ -68,15 +68,15 @@ def listen_to_stream(headers, output_path):
         response.raise_for_status()
 
         for line in response.iter_lines():
-            decoded_line = line.decode('utf-8')
+            decoded_line = line.decode("utf-8")
             if decoded_line.startswith("data: "):
                 json_part = decoded_line[6:].strip()
                 if not json_part:
                     continue
                 try:
                     data = json.loads(json_part)
-                    execution_id = data.get('id')
-                    result = data.get('data', {}).get('Final_Result')
+                    execution_id = data.get("id")
+                    result = data.get("data", {}).get("Final_Result")
                     if execution_id and result:
                         stream_results.append(execution_id)
                         filename = execution_id_dict.get(execution_id)
@@ -104,13 +104,17 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
         if file.is_file():
             print(f"Processing: {file.name}")
 
-            with open(file, mode="r", encoding=encoding) as f:
-                file_content = f.read()
+            try:
+                with open(file, mode="r", encoding=encoding, errors="ignore") as f:
+                    file_content = f.read()
+            except Exception as e:
+                print(f"⚠️ Skipping {file.name} due to read error: {e}")
+                continue
 
             body = {
                 "project_id": project_id,
                 "wallet_id": wallet_id,
-                "data": {"content": file_content}
+                "data": {"content": file_content},
             }
 
             response = requests.post(url, headers=headers, json=body)
@@ -122,7 +126,9 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
                 else:
                     print(f"No execution_id in response: {response.json()}")
             else:
-                print(f"Failed to process {file.name}: {response.status_code} - {response.text}")
+                print(
+                    f"Failed to process {file.name}: {response.status_code} - {response.text}"
+                )
 
     return execution_id_dict
 
@@ -134,9 +140,9 @@ def check_for_stream(execution_ids):
     """
     Wait for all stream results.
     """
-    timeout = time.time() + 600 # Close stream after 10 minutes.
+    timeout = time.time() + 600  # Close stream after 10 minutes.
     print("\nWaiting for stream results...\n")
-    
+
     while True:
         if all(eid in stream_results for eid in execution_ids) or time.time() > timeout:
             break
@@ -156,7 +162,7 @@ def main():
     Main function to execute the workflow: authenticate, send files, listen for results, and save outputs.
     """
     if len(sys.argv) != 2:
-        print("Usage: python run_cbn_workflow.py [cpp|stored_procedure]")
+        print("Usage: python run_cbn_workflow.py [cpp|stored_procedure|datastage]")
         sys.exit(1)
 
     FILETYPE = sys.argv[1]
@@ -192,7 +198,7 @@ def main():
             print("✅ Authentication successful.")
 
             # Step 2: Retrieve project and wallet ID
-            headers = {'Authorization': f'Bearer {token}'}
+            headers = {"Authorization": f"Bearer {token}"}
             project_id, wallet_id = get_user_project(headers, cbn_project)
         else:
             # Fallback test mode
@@ -206,12 +212,30 @@ def main():
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
-    # Determine suffix and encoding
-    suffix = "datastage" if FILETYPE == "datastage" else "stored-procedure"
-    encoding = "utf-8" if FILETYPE == "datastage" else "utf-16"
+    # -------------------------------
+    # Proper suffix & encoding mapping
+    # -------------------------------
+    suffix_map = {
+        "cpp": "cpp",
+        "stored_procedure": "stored-procedure",
+        "datastage": "datastage",
+    }
+    suffix = suffix_map.get(FILETYPE)
+    if not suffix:
+        print(f"❌ Unsupported filetype: {FILETYPE}")
+        sys.exit(1)
+
+    encoding_map = {
+        "cpp": "utf-8",                 # C++ source files
+        "stored_procedure": "utf-16",   # SPs often in UTF-16
+        "datastage": "utf-8",           # Job configs usually text/JSON
+    }
+    encoding = encoding_map.get(FILETYPE, "utf-8")
 
     # Step 3: Start stream listener in background
-    stream_thread = threading.Thread(target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True)
+    stream_thread = threading.Thread(
+        target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True
+    )
     stream_thread.start()
     time.sleep(2)  # Ensure the stream is ready
 
@@ -225,5 +249,5 @@ def main():
 # -------------------------------
 # SCRIPT ENTRY POINT
 # -------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
