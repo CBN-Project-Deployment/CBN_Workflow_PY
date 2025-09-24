@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PYTHONPATH = "${WORKSPACE}/CBN_Workflow_PY"
-        CBN_PASSWORD = credentials('cbn-password')   // 🔑 Injects Jenkins secret text
+        PYTHON = 'python3'
     }
 
     stages {
@@ -17,14 +16,14 @@ pipeline {
             parallel {
                 stage('Python Workflow') {
                     steps {
-                        dir("${WORKSPACE}/CBN_Workflow_PY") {
+                        dir('CBN_Workflow_PY') {
                             git url: 'https://github.com/Mrityunjai-demo/CBN_Workflow_PY.git', branch: 'main'
                         }
                     }
                 }
                 stage('C++ Code') {
                     steps {
-                        dir("${WORKSPACE}/cpp_code") {
+                        dir('cpp_code') {
                             git url: 'https://github.com/Mrityunjai-demo/Gridctrl_src_CplusPlus.git', branch: 'main'
                         }
                     }
@@ -34,12 +33,12 @@ pipeline {
 
         stage('Setup Python Environment') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     sh '''
                         rm -rf venv
-                        python3 -m venv venv
+                        ${PYTHON} -m venv venv
                         . venv/bin/activate
-                        python3 -m pip install --upgrade pip
+                        ${PYTHON} -m pip install --upgrade pip
                         pip install requests
                     '''
                 }
@@ -48,12 +47,12 @@ pipeline {
 
         stage('Verify cbn_config.py') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     script {
-                        if (!fileExists('cbn_config.py')) {
-                            error "❌ cbn_config.py not found!"
-                        } else {
+                        if (fileExists('cbn_config.py')) {
                             echo "✅ cbn_config.py exists, continuing..."
+                        } else {
+                            error "❌ cbn_config.py missing!"
                         }
                     }
                 }
@@ -62,7 +61,7 @@ pipeline {
 
         stage('Prepare Input Files') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     sh '''
                         mkdir -p input_files/cpp
                         mkdir -p input_files/stored_procedure
@@ -81,10 +80,10 @@ pipeline {
 
         stage('Run Python CbN Workflow') {
             steps {
-                dir("${WORKSPACE}/CBN_Workflow_PY") {
+                dir('CBN_Workflow_PY') {
                     script {
                         if (fileExists('run_cbn_workflow.py')) {
-                            echo "🚀 Running Python workflow: run_cbn_workflow.py"
+                            echo "Running Python workflow: run_cbn_workflow.py"
                             sh '''
                                 . venv/bin/activate
                                 python3 run_cbn_workflow.py cpp
@@ -101,9 +100,7 @@ pipeline {
     post {
         always {
             echo "🧹 Cleaning workspace..."
-            script {
-                cleanWs()   // ✅ Wrapped in script{} so it runs in correct context
-            }
+            cleanWs()
         }
         failure {
             echo "❌ Pipeline failed!"
