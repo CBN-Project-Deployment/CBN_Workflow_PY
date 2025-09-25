@@ -46,7 +46,7 @@ def get_user_project(headers, project_name, namespace):
     url = f"{cfg.URL_BASE}/projects"
     response = requests.get(url, headers=headers)
     response.raise_for_status()
-    print(response.json().get('results', []))
+  
     for project in response.json().get('results', []):
         if project.get('name') == project_name and project.get('namespace') == namespace : 
             print("CbN Project :", project.get('name'))
