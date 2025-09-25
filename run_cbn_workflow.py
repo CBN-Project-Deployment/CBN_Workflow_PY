@@ -39,16 +39,17 @@ def authenticate(password):
 # -------------------------------
 # PROJECT RETRIEVAL
 # -------------------------------
-def get_user_project(headers, project_name):
+def get_user_project(headers, project_name, namespace):
     """
     Retrieve project ID and wallet ID for the given project name.
     """
     url = f"{cfg.URL_BASE}/projects"
     response = requests.get(url, headers=headers)
     response.raise_for_status()
-
+    print(response.json().get('results', []))
     for project in response.json().get('results', []):
-        if project.get('name') == project_name:
+        if project.get('name') == project_name and project.get('namespace') == namespace : 
+            print("CbN Project :", project.get('name'))
             return project.get('id'), project.get('wallet_id')
 
     raise ValueError(f"Project '{project_name}' not found.")
@@ -64,32 +65,30 @@ def listen_to_stream(headers, output_path):
     """
     stream_url = f"{cfg.URL_BASE}/stream"
 
-    try:
-        with requests.get(stream_url, headers=headers, stream=True) as response:
-            response.raise_for_status()
+    with requests.get(stream_url, headers=headers, stream=True) as response:
+        response.raise_for_status()
 
-            for line in response.iter_lines():
-                decoded_line = line.decode('utf-8')
-                if decoded_line.startswith("data: "):
-                    json_part = decoded_line[6:].strip()
-                    if not json_part:
-                        continue
-                    try:
-                        data = json.loads(json_part)
-                        execution_id = data.get('id')
-                        result = data.get('data', {}).get('Final_Result')
-                        if execution_id and result:
-                            stream_results.append(execution_id)
-                            filename = execution_id_dict.get(execution_id)
-                            if filename:
-                                output_file = Path(output_path) / f"{filename}.md"
-                                with open(output_file, "w", encoding="utf-8") as f:
-                                    f.write(result)
-                                print(f"{filename}.md : file created.")
-                    except json.JSONDecodeError:
-                        continue
-    except Exception as e:
-        print(f"⚠️ Stream listener error: {e}")
+        for line in response.iter_lines():
+            decoded_line = line.decode('utf-8')
+            if decoded_line.startswith("data: "):
+                json_part = decoded_line[6:].strip()
+                if not json_part:
+                    continue
+                try:
+                    data = json.loads(json_part)
+                    execution_id = data.get('id')
+                    result = data.get('data', {}).get('Final_Result')
+                    if execution_id and result:
+                        stream_results.append(execution_id)
+                        filename = execution_id_dict.get(execution_id)
+                        if filename:
+                            output_file = Path(output_path) / f"{filename}.js"
+                            with open(output_file, "w", encoding="utf-8") as f:
+                                f.write(result)
+                            print(f"{filename}.js : file created.")
+                        #print(f"Elapsed time (ms): {data.get('elapsed_time_ms', '0')}")
+                except json.JSONDecodeError:
+                    continue
 
 
 # -------------------------------
@@ -100,57 +99,34 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
     Send all files in the specified directory to the API for processing.
     Returns a dictionary mapping filenames to execution IDs.
     """
-    dir_path = Path(file_path)
-    execution_map = {}
-
-    # If headers or project_id missing, skip API call (test mode)
-    test_mode = not headers or not project_id or not wallet_id
-    if test_mode:
-        print("⚠️  Test mode: skipping API call, generating dummy execution IDs")
-        for file in dir_path.iterdir():
-            if file.is_file():
-                execution_id = f"dummy-{file.stem}"
-                execution_map[execution_id] = file.name
-        return execution_map
-
     url = f"{cfg.URL_BASE}/dags/api-workflow-{suffix}-01"
+    dir_path = Path(file_path)
 
     for file in dir_path.iterdir():
         if file.is_file():
             print(f"Processing: {file.name}")
 
-            try:
-                with open(file, mode="r", encoding=encoding, errors="ignore") as f:
-                    file_content = f.read()
-            except Exception as e:
-                print(f"⚠️ Skipping {file.name} due to read error: {e}")
-                continue
+            with open(file, mode="r", encoding=encoding) as f:
+                file_content = f.read()
 
             body = {
                 "project_id": project_id,
                 "wallet_id": wallet_id,
-                "data": {"content": file_content},
+                "data": {"content": file_content}
             }
 
             response = requests.post(url, headers=headers, json=body)
 
             if response.ok:
-                try:
-                    execution_id = response.json().get("execution_id")
-                except json.JSONDecodeError:
-                    print(f"⚠️ Failed to decode JSON response for {file.name}")
-                    continue
-
+                execution_id = response.json().get("execution_id")
                 if execution_id:
-                    execution_map[execution_id] = file.name
+                    execution_id_dict[execution_id] = file.name
                 else:
-                    print(f"No execution_id in response: {response.text}")
+                    print(f"No execution_id in response: {response.json()}")
             else:
-                print(
-                    f"Failed to process {file.name}: {response.status_code} - {response.text}"
-                )
+                print(f"Failed to process {file.name}: {response.status_code} - {response.text}")
 
-    return execution_map
+    return execution_id_dict
 
 
 # -------------------------------
@@ -160,9 +136,10 @@ def check_for_stream(execution_ids):
     """
     Wait for all stream results.
     """
-    timeout = time.time() + 600  # Close stream after 10 minutes.
+    timeout = time.time() + 600 # Close stream after 10 minutes.
     print("\nWaiting for stream results...\n")
-
+    
+    # Wait until all execution IDs have results
     while True:
         if all(eid in stream_results for eid in execution_ids) or time.time() > timeout:
             break
@@ -172,8 +149,6 @@ def check_for_stream(execution_ids):
         print("Timeout reached. Some results may be missing.")
     else:
         print("\n=== All results received from stream...exiting...===\n")
-
-
 # -------------------------------
 # MAIN ENTRY POINT
 # -------------------------------
@@ -182,26 +157,20 @@ def main():
     Main function to execute the workflow: authenticate, send files, listen for results, and save outputs.
     """
     if len(sys.argv) != 2:
-        print("Usage: python run_cbn_workflow.py [cpp|stored_procedure]")
+        print("Usage: python run_cbn_workflow.py [datastage|stored_procedure]")
         sys.exit(1)
 
     FILETYPE = sys.argv[1]
-    PASSWORD = os.getenv("CBN_PASSWORD")
+    PASSWORD = os.environ.get("CBN_PASSWORD")
 
     if not PASSWORD:
-        print("⚠️  CBN_PASSWORD not set — running in NO-AUTH mode (test only).")
-        PASSWORD = None
+        print("Environment variable 'CBN_PASSWORD' not set.")
+        sys.exit(1)
 
+    namespace = cfg.namespace
     cbn_project = cfg.CBN_PROJECT
-
-    # -------------------------------
-    # FIXED PATH: Use absolute path to avoid double prefix issue
-    # -------------------------------
-    BASE_DIR = Path(__file__).parent.resolve()
-    INPUT_DIR = BASE_DIR / cfg.INPUT_DIR / FILETYPE
-    OUTPUT_DIR = BASE_DIR / cfg.OUTPUT_DIR / FILETYPE
-
-    print(f"Looking for input files in: {INPUT_DIR}")  # Debug print
+    INPUT_DIR = f"{cfg.INPUT_DIR}/{FILETYPE}"
+    OUTPUT_DIR = f"{cfg.OUTPUT_DIR}/{FILETYPE}"
 
     # Ensure input directory exists and has files
     if not os.path.exists(INPUT_DIR) or not any(Path(INPUT_DIR).iterdir()):
@@ -212,18 +181,14 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     try:
-        if PASSWORD:
-            # Step 1: Authenticate and retrieve token
-            token = authenticate(PASSWORD)
-            print("✅ Authentication successful.")
+        # Step 1: Authenticate and retrieve token
+        token = authenticate(PASSWORD)
+        print("Authentication successful.")
 
-            # Step 2: Retrieve project and wallet ID
-            headers = {'Authorization': f'Bearer {token}'}
-            project_id, wallet_id = get_user_project(headers, cbn_project)
-        else:
-            # Fallback test mode
-            print("🚀 Skipping authentication and project lookup (test mode).")
-            headers, project_id, wallet_id = {}, None, None
+        # Step 2: Retrieve project and wallet ID
+        headers = {'Authorization': f'Bearer {token}'}
+        project_id, wallet_id = get_user_project(headers, cbn_project, namespace)
+        
 
     except requests.HTTPError as err:
         print(f"HTTP error occurred: {err}")
@@ -232,18 +197,17 @@ def main():
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
-    # Determine suffix and encoding
-    suffix = "datastage" if FILETYPE == "datastage" else "stored-procedure"
-    encoding = "utf-8" if FILETYPE == "datastage" else "utf-16"
+    # Determine suffix based on file type
+    suffix = "datastage" if FILETYPE == "datastage" else "cpp"
+    encoding = "utf-8" #if FILETYPE == "datastage" else "utf-16"
 
     # Step 3: Start stream listener in background
-    stream_thread = threading.Thread(target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True)
+    stream_thread = threading.Thread(target=listen_to_stream, args=(headers,OUTPUT_DIR), daemon=True)
     stream_thread.start()
     time.sleep(2)  # Ensure the stream is ready
 
     # Step 4: Send files and get execution IDs
     execution_ids = send_file_to_api(INPUT_DIR, suffix, headers, project_id, wallet_id, encoding)
-    execution_id_dict.update(execution_ids)
 
     # Step 5: Check for stream to end
     check_for_stream(execution_ids)
