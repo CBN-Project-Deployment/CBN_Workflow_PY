@@ -7,7 +7,7 @@
 #AUTH_ROPC_URL = "https://your-auth-url.com"
 #URL_BASE = "https://your-api-url.com"
 #USERNAME = "Vikas.Mapari@nttdata.com"
-USERNAME = "shrikant.pangudwale@nttdata.com"
+USERNAME = "MrityunjaiKumar.Dwivedy@nttdata.com"
 ROPC_CLIENT_ID = "3de400cd-0002-45fe-b163-1a5111944aec"
 AUTH_ROPC_URL = "https://dedalowcodingb2cpro.b2clogin.com/dedalowcodingb2cpro.onmicrosoft.com/B2C_1_ROPC-SignIn/oauth2/v2.0/token"   # Replace with actual URL
 URL_BASE = "https://coding.nttdata.com/api/v2"                     # Replace with actual URL
