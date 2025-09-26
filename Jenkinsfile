@@ -59,7 +59,7 @@ pipeline {
                                 echo "❌ Stopping process as file not found."
                             }
                         } 
-                        else if !fileExists('run_cbn_workflow.py')
+                        else if (!fileExists('run_cbn_workflow.py'))
                         {
                             error "❌ run_cbn_workflow.py not present."
                             failure {
