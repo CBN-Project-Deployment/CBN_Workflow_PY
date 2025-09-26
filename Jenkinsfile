@@ -82,7 +82,7 @@ pipeline {
                         mkdir -p input_files/cpp
                         touch input_files/cpp/merged.cpp
                         cat ../source_code/GridCtrl.h \
-                            ../source_code/GridCtrl.h.cpp \
+                            ../source_code/GridCtrl.cpp \
                             ../source_code/CellRange.h \
                             ../source_code/GridCell.h \
                             ../source_code/GridCell.cpp \
@@ -93,8 +93,8 @@ pipeline {
                             ../source_code/InPlaceEdit.h \
                             ../source_code/InPlaceEdit.cpp \
                             ../source_code/MemDC.h \
-                            ../source_code/Titletip.h \
-                            ../source_code/Titletip.cpp >> input_files/cpp/merged.cpp
+                            ../source_code/TitleTip.h \
+                            ../source_code/TitleTip.cpp >> input_files/cpp/merged.cpp
                     '''
                 }
             }
