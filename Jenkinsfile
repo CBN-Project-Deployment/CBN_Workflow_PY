@@ -81,20 +81,20 @@ pipeline {
                     sh '''
                         mkdir -p input_files/cpp
                         touch input_files/cpp/merged.cpp
-                        cat ../cpp_code/GridCtrl.h \
-                            ../cpp_code/GridCtrl.h.cpp \
-                            ../cpp_code/CellRange.h \
-                            ../cpp_code/GridCell.h \
-                            ../cpp_code/GridCell.cpp \
-                            ../cpp_code/GridCellBase.h \
-                            ../cpp_code/GridCellBase.cpp \
-                            ../cpp_code/GridDropTarget.h \
-                            ../cpp_code/GridDropTarget.cpp \
-                            ../cpp_code/InPlaceEdit.h \
-                            ../cpp_code/InPlaceEdit.cpp \
-                            ../cpp_code/MemDC.h \
-                            ../cpp_code/Titletip.h \
-                            ../cpp_code/Titletip.cpp >> input_files/cpp/merged.cpp
+                        cat ../source_code/GridCtrl.h \
+                            ../source_code/GridCtrl.h.cpp \
+                            ../source_code/CellRange.h \
+                            ../source_code/GridCell.h \
+                            ../source_code/GridCell.cpp \
+                            ../source_code/GridCellBase.h \
+                            ../source_code/GridCellBase.cpp \
+                            ../source_code/GridDropTarget.h \
+                            ../source_code/GridDropTarget.cpp \
+                            ../source_code/InPlaceEdit.h \
+                            ../source_code/InPlaceEdit.cpp \
+                            ../source_code/MemDC.h \
+                            ../source_code/Titletip.h \
+                            ../source_code/Titletip.cpp >> input_files/cpp/merged.cpp
                     '''
                 }
             }
