@@ -122,13 +122,13 @@ pipeline {
         }
     }
 
-    // post {
-    //     always {
-    //         echo "🧹 Cleaning workspace..."
-    //         cleanWs()
-    //     }
-    //     failure {
-    //         echo "❌ Pipeline failed!"
-    //     }
-    // }
+    post {
+        always {
+            echo "🧹 Cleaning workspace..."
+            cleanWs()
+        }
+        failure {
+            echo "❌ Pipeline failed!"
+        }
+    }
 }
