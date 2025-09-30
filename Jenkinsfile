@@ -125,9 +125,7 @@ pipeline {
     post {
         always {
             echo "🧹 Cleaning workspace..."
-            node {
             cleanWs()
-            }
         }
         failure {
             echo "❌ Pipeline failed!"
