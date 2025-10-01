@@ -64,8 +64,8 @@ pipeline {
       steps {
         sh '''
           set -eu
-          mkdir -p CBN_Workflow_PY/input_files/cpp
-          : > CBN_Workflow_PY/input_files/cpp/merged.cpp
+          mkdir -p input_files/cpp
+          input_files/cpp/merged.cpp
 
           # List of expected source files (update if the repo structure differs)
           files=(
