@@ -65,7 +65,7 @@ pipeline {
         sh '''
           set -eu
           mkdir -p input_files/cpp
-          input_files/cpp/merged.cpp
+          touch input_files/cpp/merged.cpp
 
           files=(
             "GridCtrl.h"
