@@ -9,7 +9,6 @@ pipeline {
 
   environment {
     PYTHON = 'python3'
-    // Secret Text cred with ID 'CBN_PASSWORD_CREDENTIAL_ID'
     CBN_PASSWORD = credentials('CBN_PASSWORD_CREDENTIAL_ID')
   }
 
@@ -34,23 +33,12 @@ pipeline {
       }
     }
 
-    stage('Setup Python Environment') {
+    stage('Install dependencies') {
       steps {
-        dir('CBN_Workflow_PY') {
-          sh '''
-            set -e
-            rm -rf .venv
-            ${PYTHON} -m venv .venv
-            . .venv/bin/activate
-            python -m pip install --upgrade pip
-            # Install what you need; prefer requirements.txt if present
-            if [ -f requirements.txt ]; then
-              pip install -r requirements.txt
-            else
-              pip install requests
-            fi
-          '''
-        }
+        sh '''
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests
+        '''
       }
     }
 
@@ -115,26 +103,13 @@ pipeline {
       }
     }
 
-    stage('Run CbN Workflow') {
-      steps {
-        dir('CBN_Workflow_PY') {
-          script {
-            if (!fileExists('run_cbn_workflow.py')) {
-              error "❌ run_cbn_workflow.py not found!"
-            }
-          }
-          sh '''
-            set -e
-            . .venv/bin/activate
-            # CBN_PASSWORD is exported by Jenkins environment; python can read os.environ['CBN_PASSWORD']
-            echo "▶ Running CbN workflow to convert C++ to JS..."
-            python run_cbn_workflow.py cpp
-          '''
-        }
-      }
+  stage('Run CbN Workflow') {
+    steps {
+      sh 'python3 run_cbn_workflow.py cpp'
     }
+  }
 
-  } // stages
+  }
 
   post {
     success {
