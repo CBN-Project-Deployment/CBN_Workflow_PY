@@ -63,7 +63,7 @@ pipeline {
     stage('Prepare Input Files') {
       steps {
         sh '''
-          set -euo pipefail
+          set -eu
           mkdir -p CBN_Workflow_PY/input_files/cpp
           : > CBN_Workflow_PY/input_files/cpp/merged.cpp
 
