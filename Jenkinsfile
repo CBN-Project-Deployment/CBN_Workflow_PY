@@ -63,7 +63,8 @@ pipeline {
     stage('Prepare Input Files') {
       steps {
         sh '''
-          set -eu
+          #!/bin/bash
+          set -euo pipefail
           mkdir -p input_files/cpp
           touch input_files/cpp/merged.cpp
 
