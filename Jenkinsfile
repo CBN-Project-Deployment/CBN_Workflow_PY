@@ -67,7 +67,6 @@ pipeline {
           mkdir -p input_files/cpp
           input_files/cpp/merged.cpp
 
-          # List of expected source files (update if the repo structure differs)
           files=(
             "GridCtrl.h"
             "GridCtrl.cpp"
@@ -85,17 +84,16 @@ pipeline {
             "TitleTip.cpp"
           )
 
-          # Many of the above live under "GridCtrl" in that repo; try both root and GridCtrl/
           for f in "${files[@]}"; do
             if [ -f "source_code/$f" ]; then
-              cat "source_code/$f" >> CBN_Workflow_PY/input_files/cpp/merged.cpp
+              cat "source_code/$f" >> input_files/cpp/merged.cpp
             elif [ -f "source_code/GridCtrl/$f" ]; then
-              cat "source_code/GridCtrl/$f" >> CBN_Workflow_PY/input_files/cpp/merged.cpp
+              cat "source_code/GridCtrl/$f" >> input_files/cpp/merged.cpp
             else
               echo "Missing expected file: $f" >&2
               exit 1
             fi
-            echo -e "\n\n" >> CBN_Workflow_PY/input_files/cpp/merged.cpp
+            echo -e "\n\n" >> input_files/cpp/merged.cpp
           done
 
           echo "✅ merged.cpp prepared"
