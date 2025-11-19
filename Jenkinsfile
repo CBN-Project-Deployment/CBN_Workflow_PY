@@ -33,7 +33,7 @@ pipeline {
 
     stage('Install dependencies') {
       steps {
-        wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm']) {
+        ansiColor('xterm') {
           timestamps {
             sh '''
               python3 -m pip install --upgrade pip
@@ -64,7 +64,7 @@ pipeline {
 
     stage('Prepare Input Files') {
       steps {
-        wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm']) {
+        ansiColor('xterm') {
           timestamps {
             sh '''#!/bin/bash
               set -euo pipefail
@@ -110,7 +110,7 @@ pipeline {
     stage('Run CbN Workflow') {
       steps {
         dir('CBN_Workflow_PY') {
-          wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm']) {
+          ansiColor('xterm') {
             timestamps {
               sh 'python3 run_cbn_workflow.py cpp'
             }
