@@ -2,8 +2,6 @@ pipeline {
   agent any
 
   options {
-    //timestamps()
-    //ansiColor('xterm')
     disableConcurrentBuilds()
   }
 
@@ -52,12 +50,12 @@ pipeline {
           script {
             def missing = []
             ['cbn_config.py', 'run_cbn_workflow.py'].each { f ->
-              if (!fileExists(f)) { missing << f }
+              if (!fileExists(f)) missing << f
             }
             if (missing) {
-              error "❌ Required file(s) missing: ${missing.join(', ')}"
+              error "Required file(s) missing: ${missing.join(', ')}"
             } else {
-              echo "✅ all required .py files exist, continuing..."
+              echo "All required .py files exist, continuing..."
             }
           }
         }
@@ -71,7 +69,7 @@ pipeline {
             sh '''#!/bin/bash
               set -euo pipefail
               mkdir -p input_files/cpp
-              touch input_files/cpp/merged.cpp
+              : > input_files/cpp/merged.cpp
 
               files=(
                 "GridCtrl.h"
@@ -102,7 +100,7 @@ pipeline {
                 echo -e "\\n\\n" >> input_files/cpp/merged.cpp
               done
 
-              echo "✅ merged.cpp prepared"
+              echo "merged.cpp prepared"
             '''
           }
         }
@@ -124,15 +122,14 @@ pipeline {
 
   post {
     success {
-      echo "✅ Pipeline succeeded."
-    }
-    always {
-      echo "🧹 Cleaning workspace..."
-      cleanWs()
+      echo "Pipeline succeeded."
     }
     failure {
-      echo "❌ Pipeline failed!"
+      echo "Pipeline failed!"
+    }
+    always {
+      echo "Cleaning workspace..."
+      cleanWs()
     }
   }
 }
-
