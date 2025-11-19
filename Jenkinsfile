@@ -121,9 +121,5 @@ pipeline {
     failure {
       echo "Pipeline failed!"
     }
-    always {
-      echo "Cleaning workspace..."
-      cleanWs()
-    }
   }
 }
