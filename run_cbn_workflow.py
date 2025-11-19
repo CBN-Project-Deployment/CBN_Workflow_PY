@@ -190,12 +190,14 @@ def main():
 
     namespace = cfg.namespace
     cbn_project = cfg.CBN_PROJECT
-    INPUT_DIR = f"{cfg.INPUT_DIR}/{FILETYPE}"
+    INPUT_DIR = Path(f"../{cfg.INPUT_DIR}/{FILETYPE}").resolve()
     OUTPUT_DIR = f"{cfg.OUTPUT_DIR}/{FILETYPE}"
 
     if not os.path.exists(INPUT_DIR) or not any(Path(INPUT_DIR).iterdir()):
         print(f"No input files found in {INPUT_DIR}")
         sys.exit(1)
+    else
+        print(f"Found input files in {INPUT_DIR}")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
