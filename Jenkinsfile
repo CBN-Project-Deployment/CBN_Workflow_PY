@@ -34,12 +34,10 @@ pipeline {
     stage('Install dependencies') {
       steps {
         ansiColor('xterm') {
-          timestamps {
-            sh '''
-              python3 -m pip install --upgrade pip
-              python3 -m pip install requests
-            '''
-          }
+          sh '''
+            python3 -m pip install --upgrade pip
+            python3 -m pip install requests
+          '''
         }
       }
     }
@@ -65,44 +63,42 @@ pipeline {
     stage('Prepare Input Files') {
       steps {
         ansiColor('xterm') {
-          timestamps {
-            sh '''#!/bin/bash
-              set -euo pipefail
-              mkdir -p input_files/cpp
-              : > input_files/cpp/merged.cpp
+          sh '''#!/bin/bash
+            set -euo pipefail
+            mkdir -p input_files/cpp
+            : > input_files/cpp/merged.cpp
 
-              files=(
-                "GridCtrl.h"
-                "GridCtrl.cpp"
-                "CellRange.h"
-                "GridCell.h"
-                "GridCell.cpp"
-                "GridCellBase.h"
-                "GridCellBase.cpp"
-                "GridDropTarget.h"
-                "GridDropTarget.cpp"
-                "InPlaceEdit.h"
-                "InPlaceEdit.cpp"
-                "MemDC.h"
-                "TitleTip.h"
-                "TitleTip.cpp"
-              )
+            files=(
+              "GridCtrl.h"
+              "GridCtrl.cpp"
+              "CellRange.h"
+              "GridCell.h"
+              "GridCell.cpp"
+              "GridCellBase.h"
+              "GridCellBase.cpp"
+              "GridDropTarget.h"
+              "GridDropTarget.cpp"
+              "InPlaceEdit.h"
+              "InPlaceEdit.cpp"
+              "MemDC.h"
+              "TitleTip.h"
+              "TitleTip.cpp"
+            )
 
-              for f in "${files[@]}"; do
-                if [ -f "source_code/$f" ]; then
-                  cat "source_code/$f" >> input_files/cpp/merged.cpp
-                elif [ -f "source_code/GridCtrl/$f" ]; then
-                  cat "source_code/GridCtrl/$f" >> input_files/cpp/merged.cpp
-                else
-                  echo "Missing expected file: $f" >&2
-                  exit 1
-                fi
-                echo -e "\\n\\n" >> input_files/cpp/merged.cpp
-              done
+            for f in "${files[@]}"; do
+              if [ -f "source_code/$f" ]; then
+                cat "source_code/$f" >> input_files/cpp/merged.cpp
+              elif [ -f "source_code/GridCtrl/$f" ]; then
+                cat "source_code/GridCtrl/$f" >> input_files/cpp/merged.cpp
+              else
+                echo "Missing expected file: $f" >&2
+                exit 1
+              fi
+              echo -e "\\n\\n" >> input_files/cpp/merged.cpp
+            done
 
-              echo "merged.cpp prepared"
-            '''
-          }
+            echo "merged.cpp prepared"
+          '''
         }
       }
     }
@@ -111,9 +107,7 @@ pipeline {
       steps {
         dir('CBN_Workflow_PY') {
           ansiColor('xterm') {
-            timestamps {
-              sh 'python3 run_cbn_workflow.py cpp'
-            }
+            sh 'python3 run_cbn_workflow.py cpp'
           }
         }
       }
