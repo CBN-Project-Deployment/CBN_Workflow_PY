@@ -112,6 +112,16 @@ pipeline {
         }
       }
     }
+
+    stage('Upload CbN output to Repo') {
+      steps {
+        dir('CBN_Workflow_PY') {
+          ansiColor('xterm') {
+            sh 'python --version'
+          }
+        }
+      }
+    }
   }
 
   post {
