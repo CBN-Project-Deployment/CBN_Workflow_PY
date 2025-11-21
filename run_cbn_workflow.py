@@ -12,7 +12,6 @@ import cbn_config as cfg  # Custom config file with constants
 execution_id_dict = {}
 stream_results = []
 
-
 # -------------------------------
 # AUTHENTICATION
 # -------------------------------
@@ -36,7 +35,6 @@ def authenticate(password):
 
     return response.json().get('access_token')
 
-
 # -------------------------------
 # PROJECT RETRIEVAL
 # -------------------------------
@@ -49,36 +47,75 @@ def get_user_project(headers, project_name, namespace):
     response.raise_for_status()
 
     for project in response.json().get('results', []):
-        if project.get('name') == project_name and project.get('namespace') == namespace:
+        if project.get('name') == project_name and  project.get('namespace') == namespace:
             print("CbN Project :", project.get('name'))
             return project.get('id'), project.get('wallet_id')
 
     raise ValueError(f"Project '{project_name}' not found.")
 
+# -------------------------------
+# DOWNLOAD CbN OUTPUT
+# -------------------------------
+def download_blob(headers, container, blob_id):
+    """
+    Download blob which is output of CbN workflow
+    """
+    url = f"{cfg.URL_BASE}/datalake/{container}/{blob_id}"
+    
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        print("Blob downloaded successfully")
+        return response.content  # binary data
+    else:
+        print("Error:", response.status_code, response.text)
+        return None
 
 # -------------------------------
 # STREAM LISTENER
 # -------------------------------
 def listen_to_stream(headers, output_path):
     """
-    Connect to the streaming endpoint and listen for final results.
-    Runs in a separate thread.
+    Listen to the streaming endpoint and save results as files.
+    Handles both direct JSON results and Blob downloads.
     """
+
     stream_url = f"{cfg.URL_BASE}/stream"
-
-    with requests.get(stream_url, headers=headers, stream=True) as response:
-        response.raise_for_status()
-
-        for line in response.iter_lines():
-            decoded_line = line.decode('utf-8')
-            if decoded_line.startswith("data: "):
-                json_part = decoded_line[6:].strip()
-                if not json_part:
+    try:
+        with requests.get(stream_url, headers=headers, stream=True) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
                     continue
                 try:
+                    decoded = line.decode('utf-8')
+                    if not decoded.startswith("data: "):
+                        continue
+                    json_part = decoded[6:].strip()
+                    if not json_part:
+                        continue
+
                     data = json.loads(json_part)
                     execution_id = data.get('id')
-                    result = data.get('data', {}).get('Final_Result')
+                    result = None
+
+                    # --- Handle blob or direct result ---
+                    data_content = data.get('data', {})
+                    data_type = data_content.get('type')
+
+                    if data_type == 'Blob':
+                        blob_id = data_content.get('id')
+                        container = data_content.get('container')
+                        #-----Function call to download blob-----
+                        blob_data = download_blob(headers, container, blob_id)
+                        if blob_data:
+                            blob_data = blob_data.decode("utf-8")
+                            blob_data = json.loads(blob_data)
+                            result = blob_data.get("Final_Result")
+                    else:
+                        result = data_content.get("Final_Result")
+                    # ---- ------------- ------------- ------
+                    
                     if execution_id and result:
                         stream_results.append(execution_id)
                         filename = execution_id_dict.get(execution_id)
@@ -89,27 +126,8 @@ def listen_to_stream(headers, output_path):
                             print(f"{filename}.js : file created.")
                 except json.JSONDecodeError:
                     continue
-
-
-# -------------------------------
-# SAFE FILE READER
-# -------------------------------
-def safe_read_file(file_path, encoding="utf-8"):
-    """
-    Safely read a text file. Try UTF-8 first, then fall back to cp1252 (Windows-1252).
-    If still failing, replace problematic characters.
-    """
-    try:
-        with open(file_path, mode="r", encoding=encoding) as f:
-            return f.read()
-    except UnicodeDecodeError:
-        try:
-            with open(file_path, mode="r", encoding="cp1252") as f:
-                return f.read()
-        except UnicodeDecodeError:
-            with open(file_path, mode="r", encoding="utf-8", errors="replace") as f:
-                return f.read()
-
+    except requests.RequestException as e:
+        print(f"Stream connection failed: {e}")
 
 # -------------------------------
 # FILE PROCESSING
@@ -126,8 +144,8 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
         if file.is_file():
             print(f"Processing: {file.name}")
 
-            # Use safe reader instead of direct open()
-            file_content = safe_read_file(file, encoding)
+            with open(file, mode="r", encoding=encoding) as f:
+                file_content = f.read()
 
             body = {
                 "project_id": project_id,
@@ -148,17 +166,17 @@ def send_file_to_api(file_path, suffix, headers, project_id, wallet_id, encoding
 
     return execution_id_dict
 
-
 # -------------------------------
-# STREAM WAITING
+# Check if need to wait for stream
 # -------------------------------
 def check_for_stream(execution_ids):
     """
     Wait for all stream results.
     """
-    timeout = time.time() + 600  # Close stream after 10 minutes.
+    timeout = time.time() + 600 # Close stream after 10 minutes.
     print("\nWaiting for stream results...\n")
-
+    
+    # Wait until all execution IDs have results
     while True:
         if all(eid in stream_results for eid in execution_ids) or time.time() > timeout:
             break
@@ -169,7 +187,6 @@ def check_for_stream(execution_ids):
     else:
         print("\n=== All results received from stream...exiting...===\n")
 
-
 # -------------------------------
 # MAIN ENTRY POINT
 # -------------------------------
@@ -178,7 +195,7 @@ def main():
     Main function to execute the workflow: authenticate, send files, listen for results, and save outputs.
     """
     if len(sys.argv) != 2:
-        print("Usage: python run_cbn_workflow.py [datastage|stored_procedure|cpp]")
+        print("Usage: python run_cbn_workflow.py [datastage|stored_procedure]")
         sys.exit(1)
 
     FILETYPE = sys.argv[1]
@@ -188,27 +205,27 @@ def main():
         print("Environment variable 'CBN_PASSWORD' not set.")
         sys.exit(1)
 
-    namespace = cfg.namespace
+    cbn_namespace = cfg.CBN_NAMESPACE
     cbn_project = cfg.CBN_PROJECT
-    INPUT_DIR = Path(f"../{cfg.INPUT_DIR}/{FILETYPE}").resolve()
-    OUTPUT_DIR = f"{cfg.OUTPUT_DIR}/{FILETYPE}"
+    input_dir = f"{cfg.INPUT_DIR}/{FILETYPE}"
+    output_dir = f"{cfg.OUTPUT_DIR}/{FILETYPE}"
 
-    if not os.path.exists(INPUT_DIR) or not any(Path(INPUT_DIR).iterdir()):
-        print(f"No input files found in {INPUT_DIR}")
+    # Ensure input directory exists and has files
+    if not os.path.exists(input_dir) or not any(Path(input_dir).iterdir()):
+        print(f"No input files found in {input_dir}")
         sys.exit(1)
-    else:
-        print(f"Found input files in {INPUT_DIR}")
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Create output directory if needed
+    os.makedirs(output_dir, exist_ok=True)
 
     try:
-        # Step 1: Authenticate
+        # Step 1: Authenticate and retrieve token
         token = authenticate(PASSWORD)
         print("Authentication successful.")
 
-        # Step 2: Retrieve project
+        # Step 2: Retrieve project and wallet ID
         headers = {'Authorization': f'Bearer {token}'}
-        project_id, wallet_id = get_user_project(headers, cbn_project, namespace)
+        project_id, wallet_id = get_user_project(headers, cbn_project, cbn_namespace)
 
     except requests.HTTPError as err:
         print(f"HTTP error occurred: {err}")
@@ -217,19 +234,20 @@ def main():
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
-    # Step 3: Start stream listener
+    # Determine suffix based on file type
     suffix = "datastage" if FILETYPE == "datastage" else "cpp"
-    encoding = "utf-8"
-    stream_thread = threading.Thread(target=listen_to_stream, args=(headers, OUTPUT_DIR), daemon=True)
+    encoding = "utf-8" if FILETYPE == "datastage" else "windows-1252"
+
+    # Step 3: Start stream listener in background
+    stream_thread = threading.Thread(target=listen_to_stream, args=(headers, output_dir), daemon=True)
     stream_thread.start()
-    time.sleep(2)
+    time.sleep(2)  # Ensure the stream is ready
 
-    # Step 4: Send files
-    execution_ids = send_file_to_api(INPUT_DIR, suffix, headers, project_id, wallet_id, encoding)
+    # Step 4: Send files and get execution IDs
+    execution_ids = send_file_to_api(input_dir, suffix, headers, project_id, wallet_id, encoding)
 
-    # Step 5: Wait for results
+    # Step 5: Check for stream to end
     check_for_stream(execution_ids)
-
 
 # -------------------------------
 # SCRIPT ENTRY POINT
